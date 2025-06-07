@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS位置自动上报器</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; text-align: center; padding: 20px; }
+        #status { font-size: 1.2em; color: #333; }
+        #countdown { font-size: 1.5em; font-weight: bold; color: #3498db; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <h1>位置自动上报（室内测试）</h1>
+    <p>请保持此页面在前台运行</p>
+    <div id="status">正在初始化...</div>
+    <div id="countdown"></div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const countdownDiv = document.getElementById('countdown');
+        // 替换成您自己的阿里云“写入”API地址
+        const API_WRITE_URL = "https://index-vsrflpblmr.cn-hangzhou.fcapp.run";
+        const UPLOAD_INTERVAL = 300000; // 300,000毫秒 = 5分钟
+
+        function getLocationAndSend() {
+            statusDiv.innerText = "正在获取您的GPS位置...";
+            if (!navigator.geolocation) {
+                statusDiv.innerText = "浏览器不支持地理位置功能。";
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    statusDiv.innerHTML = `获取成功，正在上传到云端...<br><small>${new Date().toLocaleTimeString()}</small>`;
+                    
+                    const data = { latitude: lat, longitude: lon, source: "phone_browser" };
+
+                    fetch(API_WRITE_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    })
+                    .then(response => {
+                        if (!response.ok) throw new Error('服务器响应错误 ' + response.status);
+                        return response.json(); // 假设API成功后返回JSON
+                    })
+                    .then(result => {
+                        statusDiv.innerHTML = `<b>上报成功！</b><br><small>时间: ${new Date().toLocaleTimeString()}</small>`;
+                    })
+                    .catch(error => {
+                        statusDiv.innerHTML = `<b>上传失败:</b><br><small>${error.message}</small>`;
+                    });
+                },
+                (error) => {
+                    statusDiv.innerText = "获取位置失败: " + error.message;
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        }
+        
+        // 倒计时功能
+        let secondsLeft = UPLOAD_INTERVAL / 1000;
+        function startCountdown() {
+            if (secondsLeft <= 0) {
+                secondsLeft = UPLOAD_INTERVAL / 1000; // 重置计时器
+                getLocationAndSend();
+            }
+            const minutes = Math.floor(secondsLeft / 60);
+            const seconds = secondsLeft % 60;
+            countdownDiv.innerText = `下一次上报倒计时: ${minutes}分 ${seconds.toString().padStart(2, '0')}秒`;
+            secondsLeft--;
+        }
+
+        // 启动定时器
+        statusDiv.innerText = "系统已启动，即将第一次上报...";
+        getLocationAndSend(); // 页面加载后立即执行一次
+        setInterval(startCountdown, 1000); // 每秒更新倒计时
+    </script>
+</body>
+</html>
